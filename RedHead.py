@@ -169,8 +169,8 @@ data = pd.DataFrame({
 data['treatment'] = (data['sentiment_score'] > 0).astype(int) if not np.isnan(sentiment_score) else np.nan
 
 # --- IPW ---
-ipw_ate = ipw_estimate(data)
-st.write(f"📊 IPW ATE: {ipw_ate:.4f} (Impact of positive sentiment on next-day return)")
+ipw_result = ipw_estimate(data)
+st.text(ipw_result)
 
 # --- Causal Forest ---
 cf_ate = causal_forest_estimate(data)
