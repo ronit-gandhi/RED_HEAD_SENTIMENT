@@ -10,3 +10,4 @@ arch
 requests
 plotly
 joblib
+vaderSentiment
