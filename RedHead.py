@@ -5,21 +5,19 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
-import requests
 from datetime import datetime, timedelta
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from statsmodels.api import Logit, add_constant
 from arch import arch_model
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
 import plotly.express as px
 import praw
 
+# --- SECRETS ---
 REDDIT_CLIENT_ID = st.secrets["REDDIT_CLIENT_ID"]
 REDDIT_SECRET = st.secrets["REDDIT_SECRET"]
 REDDIT_USER_AGENT = st.secrets["REDDIT_USER_AGENT"]
 NEWSAPI_KEY = st.secrets["NEWSAPI_KEY"]
-
 
 # --- CONFIG ---
 st.set_page_config(page_title="RedHead AI", layout="wide")
@@ -30,6 +28,12 @@ st.sidebar.header("User Controls")
 ticker = st.sidebar.text_input("Stock Ticker (e.g., TSLA)", value="TSLA")
 days_back = st.sidebar.slider("Days of history", 30, 365, 180)
 
+# --- INITIALIZE REDDIT ---
+reddit = praw.Reddit(
+    client_id=REDDIT_CLIENT_ID,
+    client_secret=REDDIT_SECRET,
+    user_agent=REDDIT_USER_AGENT
+)
 
 # --- HELPERS ---
 def get_price_data(ticker, days):
@@ -37,8 +41,6 @@ def get_price_data(ticker, days):
     start = end - timedelta(days=days)
     data = yf.download(ticker, start=start, end=end)
     return data
-
-import praw
 
 def get_reddit_comments(ticker):
     comments = []
@@ -68,42 +70,28 @@ def ipw_estimate(data):
     import statsmodels.api as sm
     from statsmodels.discrete.discrete_model import Logit
 
-    # Ensure needed columns are present
     required_cols = ["treatment", "lag_return", "volatility", "return_tomorrow"]
     if not all(col in data.columns for col in required_cols):
         return "❌ Required columns missing."
 
-    # Drop rows with any missing values
     df = data[required_cols].dropna()
-
-    # Define variables
     y = df["treatment"]
     X = df[["lag_return", "volatility"]]
-
-    # Ensure numeric type and remove infinite values
     X = X.apply(pd.to_numeric, errors="coerce").replace([np.inf, -np.inf], np.nan).dropna()
     y = y.loc[X.index]
-
-    # Add constant term
     X = sm.add_constant(X)
 
-    # Safety check: Enough variation?
     if len(np.unique(y)) < 2:
         return "❌ Not enough variation in treatment for IPW."
 
-    # Fit logistic regression
     try:
         model = Logit(y, X).fit(disp=0)
     except Exception as e:
         return f"❌ Logit model failed: {e}"
 
-    # Get predicted propensity scores
     ps = model.predict(X)
-
-    # Calculate weights
     weights = np.where(y == 1, 1 / ps, 1 / (1 - ps))
 
-    # ATE estimate
     treated = df.loc[X.index][y == 1]
     control = df.loc[X.index][y == 0]
 
@@ -117,7 +105,7 @@ def ipw_estimate(data):
 
     return f"📊 IPW Estimate of ATE:\n  ATE = {ate:.5f}\n  Interpretation: Positive sentiment days impact next-day return by {ate * 100:.2f}%."
 
-def causal_forest_estimate(data):
+def rf_impact_estimate(data):
     data = data.dropna(subset=['treatment', 'lag_return', 'volatility', 'return_tomorrow'])
     X = data[['lag_return', 'volatility']]
     y = data['return_tomorrow']
@@ -138,7 +126,7 @@ with st.spinner("Loading price data..."):
         st.stop()
 
 # --- REDDIT SENTIMENT ---
-st.subheader("🧠 Reddit Sentiment Analysis")
+st.subheader("🧐 Reddit Sentiment Analysis")
 comments = get_reddit_comments(ticker)
 if comments:
     sentiment_df = analyze_sentiment(comments)
@@ -152,7 +140,8 @@ else:
 
 # --- PLOTTING PRICES ---
 st.subheader("📈 Stock Price")
-st.line_chart(price_data['Close'])
+fig = px.line(price_data, x=price_data.index, y='Close', title=f"{ticker} Close Price")
+st.plotly_chart(fig)
 
 # --- GARCH MODEL ---
 st.subheader("📉 GARCH Volatility Forecast")
@@ -163,22 +152,26 @@ try:
 except Exception as e:
     st.warning(f"GARCH model failed: {e}")
 
-# --- CAUSAL ANALYSIS PREP ---
+# --- CAUSAL ANALYSIS ---
 st.subheader("🧪 Causal Analysis")
 returns = price_data['Close'].pct_change().dropna()
 data = pd.DataFrame({
     'date': returns.index,
     'return_tomorrow': returns.shift(-1),
     'lag_return': returns.shift(1),
-    'volatility': returns.rolling(5).std(),
-    'sentiment_score': sentiment_score
+    'volatility': returns.rolling(5).std()
 })
-data['treatment'] = (data['sentiment_score'] > 0).astype(int) if not np.isnan(sentiment_score) else np.nan
+data['sentiment_score'] = sentiment_score
+
+if not np.isnan(sentiment_score):
+    data['treatment'] = (data['sentiment_score'] > 0).astype(int)
+else:
+    data['treatment'] = np.nan
 
 # --- IPW ---
 ipw_result = ipw_estimate(data)
 st.text(ipw_result)
 
-# --- Causal Forest ---
-cf_ate = causal_forest_estimate(data)
-st.write(f"🌳 Causal Forest ATE: {cf_ate:.4f} (Impact of sentiment using forest approximation)")
+# --- RF Approximation ---
+rf_ate = rf_impact_estimate(data)
+st.write(f"🌳 RF Approximation ATE: {rf_ate:.4f} (Impact of sentiment using regression forest)")
