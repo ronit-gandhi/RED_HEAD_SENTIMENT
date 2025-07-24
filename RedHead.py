@@ -35,13 +35,26 @@ def get_price_data(ticker, days):
     data = yf.download(ticker, start=start, end=end)
     return data
 
+import praw
+
 def get_reddit_comments(ticker):
-    url = f"https://api.pushshift.io/reddit/comment/search?q={ticker}&subreddit=stocks&size=100"
     try:
-        response = requests.get(url)
-        results = response.json()
-        return [c['body'] for c in results['data'] if 'body' in c]
-    except:
+        reddit = praw.Reddit(
+            client_id=REDDIT_CLIENT_ID,
+            client_secret=REDDIT_SECRET,
+            user_agent=REDDIT_USER_AGENT
+        )
+        comments = []
+        subreddit = reddit.subreddit("stocks")
+        for submission in subreddit.search(ticker, limit=20):
+            submission.comments.replace_more(limit=0)
+            for comment in submission.comments.list():
+                comments.append(comment.body)
+                if len(comments) >= 100:
+                    break
+        return comments
+    except Exception as e:
+        st.warning(f"Reddit API error: {e}")
         return []
 
 def analyze_sentiment(texts):
