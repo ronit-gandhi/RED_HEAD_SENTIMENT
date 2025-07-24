@@ -18,7 +18,7 @@ import praw
 REDDIT_CLIENT_ID = st.secrets["REDDIT_CLIENT_ID"]
 REDDIT_SECRET = st.secrets["REDDIT_SECRET"]
 REDDIT_USER_AGENT = st.secrets["REDDIT_USER_AGENT"]
-NEWSAPI_KEY = st.secrets["your_newsapi_key"]
+NEWSAPI_KEY = st.secrets["NEWSAPI_KEY"]
 
 
 # --- CONFIG ---
