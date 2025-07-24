@@ -13,6 +13,18 @@ from arch import arch_model
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 import plotly.express as px
+import praw
+
+
+import praw
+
+reddit = praw.Reddit(
+    client_id=REDDIT_CLIENT_ID,
+    client_secret=REDDIT_SECRET,
+    user_agent=REDDIT_USER_AGENT
+)
+NEWSAPI_KEY = "your_newsapi_key"
+
 
 # --- CONFIG ---
 st.set_page_config(page_title="RedHead AI", layout="wide")
@@ -23,14 +35,6 @@ st.sidebar.header("User Controls")
 ticker = st.sidebar.text_input("Stock Ticker (e.g., TSLA)", value="TSLA")
 days_back = st.sidebar.slider("Days of history", 30, 365, 180)
 
-import praw
-
-reddit = praw.Reddit(
-    client_id=REDDIT_CLIENT_ID,
-    client_secret=REDDIT_SECRET,
-    user_agent=REDDIT_USER_AGENT
-)
-NEWSAPI_KEY = "your_newsapi_key"
 
 # --- HELPERS ---
 def get_price_data(ticker, days):
