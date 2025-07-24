@@ -42,24 +42,15 @@ def get_price_data(ticker, days):
 import praw
 
 def get_reddit_comments(ticker):
+    comments = []
     try:
-        reddit = praw.Reddit(
-            client_id=REDDIT_CLIENT_ID,
-            client_secret=REDDIT_SECRET,
-            user_agent=REDDIT_USER_AGENT
-        )
-        comments = []
         subreddit = reddit.subreddit("stocks")
-        for submission in subreddit.search(ticker, limit=20):
-            submission.comments.replace_more(limit=0)
-            for comment in submission.comments.list():
+        for comment in subreddit.comments(limit=1000):
+            if ticker.lower() in comment.body.lower():
                 comments.append(comment.body)
-                if len(comments) >= 100:
-                    break
-        return comments
     except Exception as e:
-        st.warning(f"Reddit API error: {e}")
-        return []
+        st.warning(f"Reddit error: {e}")
+    return comments
 
 def analyze_sentiment(texts):
     analyzer = SentimentIntensityAnalyzer()
