@@ -15,9 +15,6 @@ from sklearn.model_selection import train_test_split
 import plotly.express as px
 import praw
 
-
-import praw
-
 reddit = praw.Reddit(
     client_id=REDDIT_CLIENT_ID,
     client_secret=REDDIT_SECRET,
