@@ -15,12 +15,10 @@ from sklearn.model_selection import train_test_split
 import plotly.express as px
 import praw
 
-reddit = praw.Reddit(
-    client_id=REDDIT_CLIENT_ID,
-    client_secret=REDDIT_SECRET,
-    user_agent=REDDIT_USER_AGENT
-)
-NEWSAPI_KEY = "your_newsapi_key"
+REDDIT_CLIENT_ID = st.secrets["REDDIT_CLIENT_ID"]
+REDDIT_SECRET = st.secrets["REDDIT_SECRET"]
+REDDIT_USER_AGENT = st.secrets["REDDIT_USER_AGENT"]
+NEWSAPI_KEY = st.secrets["your_newsapi_key"]
 
 
 # --- CONFIG ---
