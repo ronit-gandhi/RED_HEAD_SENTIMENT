@@ -61,37 +61,54 @@ def ipw_estimate(data):
     import statsmodels.api as sm
     from statsmodels.discrete.discrete_model import Logit
 
-    # Define outcome and predictors
-    y = data['treatment']
-    X = data[['lag_return', 'volatility']].copy()  # select only needed predictors
+    # Ensure needed columns are present
+    required_cols = ["treatment", "lag_return", "volatility", "return_tomorrow"]
+    if not all(col in data.columns for col in required_cols):
+        return "❌ Required columns missing."
 
-    # Drop any rows with missing values
-    df = pd.concat([y, X], axis=1).dropna()
-    y = df['treatment']
-    X = df[['lag_return', 'volatility']]
+    # Drop rows with any missing values
+    df = data[required_cols].dropna()
 
-    # Ensure numerical dtype
-    X = X.select_dtypes(include=['float64', 'int64'])
+    # Define variables
+    y = df["treatment"]
+    X = df[["lag_return", "volatility"]]
 
-    # Add intercept
+    # Ensure numeric type and remove infinite values
+    X = X.apply(pd.to_numeric, errors="coerce").replace([np.inf, -np.inf], np.nan).dropna()
+    y = y.loc[X.index]
+
+    # Add constant term
     X = sm.add_constant(X)
 
-    # Fit logistic model
-    model = Logit(y, X).fit(disp=0)
+    # Safety check: Enough variation?
+    if len(np.unique(y)) < 2:
+        return "❌ Not enough variation in treatment for IPW."
 
-    # Predict propensity scores
+    # Fit logistic regression
+    try:
+        model = Logit(y, X).fit(disp=0)
+    except Exception as e:
+        return f"❌ Logit model failed: {e}"
+
+    # Get predicted propensity scores
     ps = model.predict(X)
 
-    # IPW weights
+    # Calculate weights
     weights = np.where(y == 1, 1 / ps, 1 / (1 - ps))
 
-    # Estimate ATE
-    ate = (
-        np.average(data.loc[df.index, 'return_tomorrow'][y == 1], weights=weights[y == 1]) -
-        np.average(data.loc[df.index, 'return_tomorrow'][y == 0], weights=weights[y == 0])
-    )
+    # ATE estimate
+    treated = df.loc[X.index][y == 1]
+    control = df.loc[X.index][y == 0]
 
-    return ate
+    try:
+        ate = (
+            np.average(treated["return_tomorrow"], weights=weights[y == 1]) -
+            np.average(control["return_tomorrow"], weights=weights[y == 0])
+        )
+    except Exception as e:
+        return f"❌ Failed to calculate weighted ATE: {e}"
+
+    return f"📊 IPW Estimate of ATE:\n  ATE = {ate:.5f}\n  Interpretation: Positive sentiment days impact next-day return by {ate * 100:.2f}%."
 
 def causal_forest_estimate(data):
     data = data.dropna(subset=['treatment', 'lag_return', 'volatility', 'return_tomorrow'])
