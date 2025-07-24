@@ -23,9 +23,13 @@ st.sidebar.header("User Controls")
 ticker = st.sidebar.text_input("Stock Ticker (e.g., TSLA)", value="TSLA")
 days_back = st.sidebar.slider("Days of history", 30, 365, 180)
 
-REDDIT_CLIENT_ID = "your_reddit_client_id"
-REDDIT_SECRET = "your_reddit_secret"
-REDDIT_USER_AGENT = "your_user_agent"
+import praw
+
+reddit = praw.Reddit(
+    client_id=REDDIT_CLIENT_ID,
+    client_secret=REDDIT_SECRET,
+    user_agent=REDDIT_USER_AGENT
+)
 NEWSAPI_KEY = "your_newsapi_key"
 
 # --- HELPERS ---
