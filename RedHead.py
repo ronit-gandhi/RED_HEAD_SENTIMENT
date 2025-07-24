@@ -59,8 +59,14 @@ def run_garch(prices):
 
 def ipw_estimate(data):
     data = data.dropna(subset=['treatment', 'lag_return', 'volatility', 'return_tomorrow'])
-    X = add_constant(data[['lag_return', 'volatility']])
-    y = data['treatment']
+   # Ensure only numeric predictors and no NaNs
+    X = X.select_dtypes(include=['float64', 'int64']).dropna()
+    y = y.loc[X.index]  # make sure y matches filtered X
+
+# Optional: add a constant column
+    X = sm.add_constant(X)
+
+# Fit model
     model = Logit(y, X).fit(disp=0)
     p = model.predict(X)
     data['weight'] = np.where(data['treatment'] == 1, 1 / p, 1 / (1 - p))
