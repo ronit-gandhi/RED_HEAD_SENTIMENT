@@ -58,20 +58,39 @@ def run_garch(prices):
     return res, forecast
 
 def ipw_estimate(data):
-    data = data.dropna(subset=['treatment', 'lag_return', 'volatility', 'return_tomorrow'])
-   # Ensure only numeric predictors and no NaNs
-    X = X.select_dtypes(include=['float64', 'int64']).dropna()
-    y = y.loc[X.index]  # make sure y matches filtered X
+    import statsmodels.api as sm
+    from statsmodels.discrete.discrete_model import Logit
 
-# Optional: add a constant column
+    # Define outcome and predictors
+    y = data['treatment']
+    X = data[['lag_return', 'volatility']].copy()  # select only needed predictors
+
+    # Drop any rows with missing values
+    df = pd.concat([y, X], axis=1).dropna()
+    y = df['treatment']
+    X = df[['lag_return', 'volatility']]
+
+    # Ensure numerical dtype
+    X = X.select_dtypes(include=['float64', 'int64'])
+
+    # Add intercept
     X = sm.add_constant(X)
 
-# Fit model
+    # Fit logistic model
     model = Logit(y, X).fit(disp=0)
-    p = model.predict(X)
-    data['weight'] = np.where(data['treatment'] == 1, 1 / p, 1 / (1 - p))
-    ate = (data[data['treatment'] == 1]['return_tomorrow'] * data[data['treatment'] == 1]['weight']).mean() - \
-          (data[data['treatment'] == 0]['return_tomorrow'] * data[data['treatment'] == 0]['weight']).mean()
+
+    # Predict propensity scores
+    ps = model.predict(X)
+
+    # IPW weights
+    weights = np.where(y == 1, 1 / ps, 1 / (1 - ps))
+
+    # Estimate ATE
+    ate = (
+        np.average(data.loc[df.index, 'return_tomorrow'][y == 1], weights=weights[y == 1]) -
+        np.average(data.loc[df.index, 'return_tomorrow'][y == 0], weights=weights[y == 0])
+    )
+
     return ate
 
 def causal_forest_estimate(data):
